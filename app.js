@@ -11,6 +11,15 @@ class ProfilaxiaApp {
         this.charts = {};
         this.mesAtualDashboard = 'all';
         this.db = supabaseService; // Serviço Supabase
+
+        // ===== Config das faixas de comissão (mensal) =====
+        this.COMISSAO_FAIXAS = [
+            { id:'f0', label:'Faixa 1-99 (Sem comissão)',    min:1,   max:99,  valor:null,  color:'#e57373', alert:true },
+            { id:'f1', label:'Meta 100-149 (R$1,00/limpeza)',min:100, max:149, valor:1.00, color:'#90a4ae' },
+            { id:'f2', label:'Meta 150-170 (R$1,30/limpeza)',min:150, max:170, valor:1.30, color:'#26a69a' },
+            { id:'f3', label:'Meta 171-200 (R$1,50/limpeza)',min:171, max:200, valor:1.50, color:'#00897b' },
+        ];
+
         this.init();
     }
 
@@ -147,7 +156,7 @@ class ProfilaxiaApp {
     }
 
     // =====================================================
-    // NAVEGAÇÃO ENTRE PÁGINAS - CORREÇÃO DO BUG
+    // NAVEGAÇÃO ENTRE PÁGINAS
     // =====================================================
 
     async showPage(page) {
@@ -168,7 +177,7 @@ class ProfilaxiaApp {
         if (pageElement) {
             pageElement.classList.add('active');
 
-            // ✅ CORREÇÃO DO BUG: Carregar dados ao alternar páginas
+            // Carregar dados ao alternar páginas
             switch(page) {
                 case 'dashboard':
                     await this.updateDashboard();
@@ -177,7 +186,6 @@ class ProfilaxiaApp {
                     await this.loadNaoAgendados();
                     break;
                 case 'agendados':
-                    // ✅ CORREÇÃO PRINCIPAL: Adicionar carregamento dos agendados
                     await this.loadAgendados();
                     break;
                 case 'pagamentos':
@@ -269,7 +277,6 @@ class ProfilaxiaApp {
     // =====================================================
 
     async loadNaoAgendados() {
-        // Recarregar dados do servidor
         await this.loadAllData();
         
         const tbody = document.querySelector('#tableNaoAgendados tbody');
@@ -338,17 +345,16 @@ class ProfilaxiaApp {
     }
 
     // =====================================================
-    // AGENDADOS - ✅ CORREÇÃO COMPLETA
+    // AGENDADOS
     // =====================================================
 
     async loadAgendados() {
-        // ✅ Recarregar dados do servidor para garantir sincronia
         await this.loadAllData();
         
         const tbody = document.querySelector('#tableAgendados tbody');
         if (!tbody) return;
 
-        // ✅ Filtrar agendados (status = 'agendada')
+        // Filtrar agendados (status = 'agendada')
         let agendados = this.data.encaminhamentos.filter(e => this.isAgendada(e));
 
         // Filtro de mês/ano (se definidos)
@@ -385,7 +391,7 @@ class ProfilaxiaApp {
             }
         }
 
-        // ✅ Renderizar tabela
+        // Renderizar tabela
         tbody.innerHTML = agendados.map(e => {
             const dentista = this.data.dentistas.find(d => d.id === e.dentistaId);
             const dataRegistro = new Date(e.dataRegistro);
@@ -529,14 +535,30 @@ class ProfilaxiaApp {
         document.getElementById('totalPagas').textContent = totalPagas;
         document.getElementById('taxaConversao').textContent = taxaConversao + '%';
 
-        // Placar semanal
+        // Placar semanal (meta = 50)
         this.updatePlacarSemanal();
+
+        // ===== NOVOS BLOCOS =====
+        // Placar de Comissão (mensal)
+        const contPlacar = document.getElementById('placar-comissao-container');
+        const totalMes = await this.fetchLimpezasPagasMes();
+        const model = this.calcularPlacarComissao(totalMes);
+        this.renderPlacarComissao(contPlacar, model);
+
+        // Ranking 3 colunas (por período selecionável)
+        const contRanking = document.getElementById('ranking-dentistas-3col-container');
+        await this.renderRankingDentistas3ColUI(contRanking);
     }
 
     updatePlacarSemanal() {
+        const WEEKLY_GOAL = 50; // ✅ meta única da semana
+
+        // Semana inicia na segunda-feira (BR)
         const hoje = new Date();
         const inicioSemana = new Date(hoje);
-        inicioSemana.setDate(hoje.getDate() - hoje.getDay());
+        const dow = hoje.getDay();               // 0=dom,1=seg..6=sáb
+        const diff = (dow === 0 ? 6 : dow - 1);  // volta até segunda
+        inicioSemana.setDate(hoje.getDate() - diff);
         inicioSemana.setHours(0, 0, 0, 0);
 
         const fimSemana = new Date(inicioSemana);
@@ -549,8 +571,10 @@ class ProfilaxiaApp {
         }).length;
 
         document.getElementById('placarSemanal').textContent = pagosSemana;
+
+        const faltam = Math.max(WEEKLY_GOAL - pagosSemana, 0);
         document.getElementById('placarComparacao').textContent = 
-            pagosSemana >= 25 ? '🎉 Meta atingida!' : `Faltam ${25 - pagosSemana} para a meta`;
+            pagosSemana >= WEEKLY_GOAL ? '🎉 Meta atingida!' : `Faltam ${faltam} para a meta`;
     }
 
     // =====================================================
@@ -630,7 +654,7 @@ class ProfilaxiaApp {
     }
 
     // =====================================================
-    // UTILITÁRIOS
+    // UTILITÁRIOS + NOVOS BLOCOS (placar/ ranking)
     // =====================================================
 
     populateSelects() {
@@ -658,6 +682,158 @@ class ProfilaxiaApp {
             selectMes.innerHTML = '<option value="all">Todos os meses</option>' +
                 meses.map((m, i) => `<option value="${i}">${m}</option>`).join('');
         }
+    }
+
+    // ===== Helpers de período =====
+    startOfMonth(d=new Date()){ return new Date(d.getFullYear(), d.getMonth(), 1, 0,0,0,0); }
+    toISO(x){ const p=n=>String(n).padStart(2,'0'); return `${x.getFullYear()}-${p(x.getMonth()+1)}-${p(x.getDate())}T${p(x.getHours())}:${p(x.getMinutes())}:${p(x.getSeconds())}`; }
+    startOfWeekBR(now=new Date()){ const d=new Date(now); const day=d.getDay(); const diff=(day===0?6:day-1); d.setDate(d.getDate()-diff); d.setHours(0,0,0,0); return d; }
+    rangeByPeriod(periodo){ const now=new Date(); if(periodo==='semana'){const from=this.startOfWeekBR(now); return {from:this.toISO(from), to:this.toISO(now)};} if(periodo==='mes'){const from=this.startOfMonth(now); return {from:this.toISO(from), to:this.toISO(now)};} return {from:null,to:null}; }
+
+    // ===== Placar de Comissão (mensal) =====
+    async fetchLimpezasPagasMes(){
+        const from = this.startOfMonth();
+        const now = new Date();
+        const rows = this.data?.encaminhamentos || [];
+        const total = rows.filter(e=>{
+            const d = new Date(e.dataPagamento || e.dataRegistro || e.created_at || now);
+            const pago = (e.pago===true) || String(e.status).toLowerCase()==='pago' || String(e.status_pagamento).toLowerCase()==='pago';
+            return d >= from && d <= now && pago;
+        }).length;
+        return total;
+    }
+
+    calcularPlacarComissao(totalMes){
+        let ativa = this.COMISSAO_FAIXAS[0];
+        for (const f of this.COMISSAO_FAIXAS){
+            if (totalMes >= f.min && totalMes <= f.max){ ativa = f; break; }
+            if (totalMes > this.COMISSAO_FAIXAS[this.COMISSAO_FAIXAS.length-1].max){
+                ativa = this.COMISSAO_FAIXAS[this.COMISSAO_FAIXAS.length-1];
+            }
+        }
+        const linhas = this.COMISSAO_FAIXAS.map(f=>{
+            const Y = f.id==='f0' ? 100 : f.max;
+            const progress = Math.min(totalMes / Y, 1);
+            const valueText = `${Math.min(totalMes, Y)}/${Y}`;
+            return { ...f, Y, progress, valueText, isAtiva:(f.id===ativa.id) };
+        });
+        return { totalMes, ativa, linhas };
+    }
+
+    renderPlacarComissao(container, model){
+        if (!container) return;
+        const { linhas } = model;
+        container.innerHTML = `
+            <section class="card">
+                <h3>🎯 Metas Coletivas (ASB + Recepcionistas)</h3>
+                ${linhas.map(f=>`
+                    <div class="faixa ${f.alert && f.isAtiva ? 'faixa-alerta':''}">
+                        <div class="faixa-header">
+                            <span>${f.label}</span>
+                            <span class="faixa-valor">${f.valueText}</span>
+                        </div>
+                        <div class="faixa-bar">
+                            <div class="faixa-fill" style="width:${Math.round(f.progress*100)}%; background:${f.color};"></div>
+                        </div>
+                        ${f.alert && f.isAtiva ? `<p class="faixa-note">💪 Engajamento é fundamental para atingir a primeira faixa!</p>`:''}
+                    </div>
+                `).join('')}
+            </section>
+        `;
+    }
+
+    // ===== Ranking de Dentistas (3 colunas) =====
+    isPago(r){ return (r.pago===true) || String(r.status).toLowerCase()==='pago' || String(r.status_pagamento).toLowerCase()==='pago'; }
+    isAgendado(r){
+        if (typeof r.agendado==='boolean') return r.agendado;
+        const s = String(r.status_agendamento||r.status||'').toLowerCase();
+        return ['agendado','agendada','marcado','confirmado'].includes(s);
+    }
+
+    async fetchRankingDentistas3Col(periodo='semana'){
+        const { from, to } = this.rangeByPeriod(periodo);
+        const rows = (this.data?.encaminhamentos || []).filter(r=>{
+            const d = new Date(r.dataRegistro || r.created_at || Date.now());
+            if (from && to) return d >= new Date(from) && d <= new Date(to);
+            return true;
+        }).map(r=>{
+            const dent = (this.data?.dentistas || []).find(d=>d.id===r.dentistaId);
+            return { ...r, dentista_nome: dent ? dent.nome : '—' };
+        });
+
+        const map = new Map();
+        for (const r of rows){
+            const key = r.dentistaId || 'sem_id';
+            const nome = r.dentista_nome || '—';
+            const cur = map.get(key) || { dentista_id:key, nome, agendados:0, naoAgendados:0, pagos:0 };
+            if (this.isPago(r)) cur.pagos += 1;
+            if (this.isAgendado(r)) cur.agendados += 1; else cur.naoAgendados += 1;
+            map.set(key, cur);
+        }
+        const arr = [...map.values()];
+        arr.sort((a,b)=> (b.pagos - a.pagos) || (b.agendados - a.agendados) || a.nome.localeCompare(b.nome));
+        return arr.map((x,i)=>({ pos:i+1, ...x }));
+    }
+
+    async renderRankingDentistas3ColUI(container){
+        if (!container) return;
+
+        container.innerHTML = `
+            <div class="rk-card card">
+                <div class="rk-head">
+                    <h3>🏆 Ranking Dentistas (Agendado / Não Agendado / Pago)</h3>
+                    <select id="rk3-period" class="input">
+                        <option value="semana">Semana</option>
+                        <option value="mes">Mês</option>
+                        <option value="total">Total</option>
+                    </select>
+                </div>
+                <table class="rk-table">
+                    <thead>
+                        <tr>
+                            <th class="rk-pos">Pos.</th>
+                            <th>Dentista</th>
+                            <th class="rk-val">Agendado</th>
+                            <th class="rk-val">Não Agendado</th>
+                            <th class="rk-val">Pago</th>
+                        </tr>
+                    </thead>
+                    <tbody id="rk3-body"><tr><td colspan="5" class="rk-muted">Carregando…</td></tr></tbody>
+                </table>
+            </div>
+        `;
+
+        const select = container.querySelector('#rk3-period');
+        const tbody  = container.querySelector('#rk3-body');
+
+        const load = async (periodo)=>{
+            tbody.innerHTML = `<tr><td colspan="5" class="rk-muted">Carregando…</td></tr>`;
+            let data;
+            if (periodo === 'total') {
+                data = await this.fetchRankingDentistas3Col(null); // sem filtro
+            } else {
+                data = await this.fetchRankingDentistas3Col(periodo);
+            }
+            if (!data.length){
+                tbody.innerHTML = `<tr><td colspan="5" class="rk-muted">Sem dados no período.</td></tr>`;
+                return;
+            }
+            tbody.innerHTML = data.slice(0,10).map(row=>{
+                const medal = row.pos===1?'🥇':row.pos===2?'🥈':row.pos===3?'🥉':`${row.pos}º`;
+                return `
+                    <tr>
+                        <td class="rk-pos"><span class="rk-medal">${medal}</span></td>
+                        <td>${row.nome}</td>
+                        <td class="rk-val">${row.agendados}</td>
+                        <td class="rk-val">${row.naoAgendados}</td>
+                        <td class="rk-val">${row.pagos}</td>
+                    </tr>
+                `;
+            }).join('');
+        };
+
+        select.addEventListener('change', ()=> load(select.value));
+        load(select.value);
     }
 }
 
