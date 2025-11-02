@@ -4,22 +4,26 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OrthodontiC - Sistema de Profilaxia v4.0</title>
-    
+
+    <!-- Evita 404 do favicon.ico -->
+    <link rel="icon" href="data:,">
+
     <!-- CSS -->
     <link rel="stylesheet" href="styles_v3.css">
-    
+
     <!-- Libraries -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    
+
     <!-- ✅ SUPABASE SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    
+
     <!-- ✅ App Scripts -->
     <script src="supabase-service.js" defer></script>
-    <script src="app.js" defer></script>
+    <!-- Cache-bust para garantir que o navegador pegue a versão nova do app.js -->
+    <script src="app.js?v=2025-11-02-01" defer></script>
 </head>
 <body>
     <div id="app">
@@ -124,6 +128,13 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- ==== NOVOS BLOCOS DO DASHBOARD ==== -->
+                <!-- Placar de Comissão (mensal) -->
+                <div id="placar-comissao-container"></div>
+
+                <!-- Ranking de Dentistas (Agendado / Não Agendado / Pago) -->
+                <div id="ranking-dentistas-3col-container" style="margin-top:16px;"></div>
             </div>
 
             <!-- ========================================== -->
@@ -310,8 +321,8 @@
                         </table>
                     </div>
                 </div>
-            </div>
-        </div>
-    </div>
+            </div> <!-- /page gestao -->
+        </div> <!-- /screen mainApp -->
+    </div> <!-- /app -->
 </body>
 </html>
