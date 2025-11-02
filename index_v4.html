@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OrthodontiC - Sistema de Profilaxia v4.0</title>
+    
+    <!-- CSS -->
+    <link rel="stylesheet" href="styles_v3.css">
+    
+    <!-- Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+    <!-- ✅ SUPABASE SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <!-- ✅ App Scripts -->
+    <script src="supabase-service.js" defer></script>
+    <script src="app_v4_supabase.js" defer></script>
+</head>
+<body>
+    <div id="app">
+        <!-- ========================================== -->
+        <!-- TELA DE LOGIN -->
+        <!-- ========================================== -->
+        <div class="screen active" id="loginScreen">
+            <div class="login-container">
+                <div class="login-card">
+                    <img src="logo1.jpg" alt="OrthodontiC" class="login-logo">
+                    <h1>Sistema de Profilaxia</h1>
+                    <p class="subtitle">Campanha de Limpeza Dental v4.0</p>
+                    <form id="loginForm">
+                        <div class="form-group">
+                            <label for="username">Usuário</label>
+                            <input type="text" id="username" required autocomplete="username">
+                        </div>
+                        <div class="form-group">
+                            <label for="password">Senha</label>
+                            <input type="password" id="password" required autocomplete="current-password">
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-block">Entrar</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- APP PRINCIPAL -->
+        <!-- ========================================== -->
+        <div class="screen" id="mainApp">
+            <!-- Header -->
+            <header class="app-header">
+                <div class="header-content">
+                    <div style="display: flex; align-items: center;">
+                        <img src="logo1.jpg" alt="OrthodontiC" class="header-logo">
+                        <h1>Profilaxia</h1>
+                    </div>
+                    <div class="user-info">
+                        <span id="userNameDisplay"></span>
+                        <button class="btn btn-secondary btn-sm" id="logoutBtn">Sair</button>
+                    </div>
+                </div>
+                <nav class="main-nav">
+                    <button class="nav-btn active" data-page="dashboard">Dashboard</button>
+                    <button class="nav-btn" data-page="cadastro">Novo Registro</button>
+                    <button class="nav-btn" data-page="naoAgendados">Não Agendados</button>
+                    <button class="nav-btn" data-page="agendados">Agendados</button>
+                    <button class="nav-btn" data-page="pagamentos">Pagamentos</button>
+                    <button class="nav-btn nav-btn-gestao" data-page="gestao" style="display: none;">⚙️ Gestão</button>
+                </nav>
+            </header>
+
+            <!-- ========================================== -->
+            <!-- PÁGINA: DASHBOARD -->
+            <!-- ========================================== -->
+            <div class="page active" id="dashboardPage">
+                <div class="page-header">
+                    <h2>Dashboard de Monitoramento</h2>
+                    <div class="dashboard-controls">
+                        <select class="form-control" id="mesDashboard"></select>
+                        <button class="btn btn-secondary" id="refreshDashboard">🔄 Atualizar</button>
+                    </div>
+                </div>
+
+                <!-- Placar Semanal -->
+                <div class="placar-semanal">
+                    <h3>🏆 PLACAR DA SEMANA ATUAL</h3>
+                    <div class="placar-numero" id="placarSemanal">0</div>
+                    <div class="placar-info">Limpezas Pagas esta Semana</div>
+                    <div class="placar-comparacao" id="placarComparacao">Carregando...</div>
+                </div>
+
+                <!-- KPIs -->
+                <div class="kpi-grid">
+                    <div class="kpi-card">
+                        <div class="kpi-icon">✅</div>
+                        <div class="kpi-content">
+                            <h3 id="totalAgendadas">0</h3>
+                            <p>Limpezas Agendadas</p>
+                        </div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-icon">⏳</div>
+                        <div class="kpi-content">
+                            <h3 id="totalNaoAgendadas">0</h3>
+                            <p>Não Agendadas</p>
+                        </div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-icon">💰</div>
+                        <div class="kpi-content">
+                            <h3 id="totalPagas">0</h3>
+                            <p>Limpezas Pagas</p>
+                        </div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-icon">📊</div>
+                        <div class="kpi-content">
+                            <h3 id="taxaConversao">0%</h3>
+                            <p>Taxa de Conversão</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ========================================== -->
+            <!-- PÁGINA: CADASTRO -->
+            <!-- ========================================== -->
+            <div class="page" id="cadastroPage">
+                <div class="page-header">
+                    <h2>Novo Registro de Encaminhamento</h2>
+                </div>
+                <div class="card">
+                    <form id="cadastroForm">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="codigoPaciente">Código do Paciente *</label>
+                                <input type="text" id="codigoPaciente" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="nomePaciente">Nome do Paciente *</label>
+                                <input type="text" id="nomePaciente" required>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="dentista">Dentista *</label>
+                                <select id="dentista" required>
+                                    <option value="">Selecione...</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Status *</label>
+                            <div class="btn-group">
+                                <button type="button" class="btn-status selected" data-status="agendada">✅ Agendada</button>
+                                <button type="button" class="btn-status" data-status="nao_agendada">⏳ Não Agendada</button>
+                            </div>
+                            <input type="hidden" id="statusEncaminhamento" value="agendada">
+                        </div>
+                        <div class="form-group" id="groupPagouNaHora">
+                            <label>
+                                <input type="checkbox" id="pagouNaHora">
+                                💰 Pagou Imediatamente (no ato do agendamento)
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label for="observacoes">Observações</label>
+                            <textarea id="observacoes" rows="3"></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Salvar Encaminhamento</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- ========================================== -->
+            <!-- PÁGINA: NÃO AGENDADOS -->
+            <!-- ========================================== -->
+            <div class="page" id="naoAgendadosPage">
+                <div class="page-header">
+                    <h2>Pacientes Não Agendados</h2>
+                </div>
+                <div class="card">
+                    <div class="table-responsive">
+                        <table class="table" id="tableNaoAgendados">
+                            <thead>
+                                <tr>
+                                    <th>Código</th>
+                                    <th>Paciente</th>
+                                    <th>Dentista</th>
+                                    <th>Data Registro</th>
+                                    <th>Dias Pendente</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ========================================== -->
+            <!-- PÁGINA: AGENDADOS - ✅ CORRIGIDO -->
+            <!-- ========================================== -->
+            <div class="page" id="agendadosPage">
+                <div class="page-header">
+                    <h2>Pacientes Agendados</h2>
+                </div>
+                <div class="card">
+                    <div class="filters-row">
+                        <input type="text" id="searchAgendados" class="form-control" placeholder="Buscar por código ou nome...">
+                        <select id="filterDentistaAgendados" class="form-control">
+                            <option value="">Todos os dentistas</option>
+                        </select>
+                        <select id="filterStatusAgendados" class="form-control">
+                            <option value="">Todos os status</option>
+                            <option value="nao_pago">Não Pago</option>
+                            <option value="pagou_na_hora">Pagou na Hora</option>
+                            <option value="pago">Pago</option>
+                        </select>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table" id="tableAgendados">
+                            <thead>
+                                <tr>
+                                    <th>Código</th>
+                                    <th>Paciente</th>
+                                    <th>Dentista</th>
+                                    <th>Data</th>
+                                    <th>Status Pagamento</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ========================================== -->
+            <!-- PÁGINA: PAGAMENTOS -->
+            <!-- ========================================== -->
+            <div class="page" id="pagamentosPage">
+                <div class="page-header">
+                    <h2>Registro de Pagamentos</h2>
+                </div>
+                <div class="card">
+                    <div class="table-responsive">
+                        <table class="table" id="tablePagamentos">
+                            <thead>
+                                <tr>
+                                    <th>Código</th>
+                                    <th>Paciente</th>
+                                    <th>Dentista</th>
+                                    <th>Status</th>
+                                    <th>Data</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ========================================== -->
+            <!-- PÁGINA: GESTÃO -->
+            <!-- ========================================== -->
+            <div class="page" id="gestaoPage">
+                <div class="page-header">
+                    <h2>⚙️ Gestão do Sistema</h2>
+                </div>
+
+                <!-- Dentistas -->
+                <div class="card">
+                    <h3>Dentistas Cadastrados</h3>
+                    <div class="table-responsive">
+                        <table class="table" id="tableDentistas">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Nome</th>
+                                    <th>Tipo</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Funcionários -->
+                <div class="card">
+                    <h3>Funcionários Cadastrados</h3>
+                    <div class="table-responsive">
+                        <table class="table" id="tableFuncionarios">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Nome</th>
+                                    <th>Usuário</th>
+                                    <th>Perfil</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
